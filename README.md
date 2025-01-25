@@ -19,9 +19,10 @@ mv dist web-dist
 # 运行环境
 ### 后端部分
 ```shell
+# 安装依赖
 pip install -r api/requeirments.txt
-# 启动默认监听997端口, 如有需要可修改
-python 
+# 启动默认监听997端口, 如有需要可修改OpenLdapUi-api.py的app.run(host="0.0.0.0", port=997)
+python OpenLdapUi-api.py
 ```
 ### 前端部分
 依赖web服务器, 以下举例nginx
