@@ -1,6 +1,6 @@
 # OpenLdapUi
 openldap的可视化管理工具
-![image](https://github.com/user-attachments/assets/8b6d87cb-08ab-4371-9e81-9a5926c07e33)
+![image](https://github.com/user-attachments/assets/3f349700-4577-4022-99a5-7c990809509a)
 
 # 构成
 - api目录: python (建议版本3.8+)
