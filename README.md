@@ -6,6 +6,13 @@ openldap的可视化管理工具
 - api目录: python (建议版本3.8+)
 - web目录: vue3 + vite
 
+# 容器运行
+> 容器内已集成上海时区和中文环境
+```
+docker pull qufudcj/openldapui:v1
+docker run -dit --name openldapui -p 80:80 -p 997:997 qufudcj/openldapui:v1
+```
+
 # 自行编译
 ```
 cd web
