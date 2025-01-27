@@ -5,9 +5,6 @@ import threading
 import time
 import sqlite3
 
-import pymysql
-from pymysql import cursors
-from dbutils.pooled_db import PooledDB
 
 # 全局锁
 # singleton_lock = threading.RLock()
@@ -159,75 +156,3 @@ class MysqlPool(object):
 
 
 
-@singleton
-class MysqlOnce:
-    """
-    只提供单次使用的数据库连接
-    """
-    def __init__(self, host, port, user, password, database, charset='utf8', remarks=""):
-        # 初始化数据库连接
-        self.conn = pymysql.connect(user=user, password=password, host=host, port=port, charset=charset, database=database)
-        self.cursor = self.conn.cursor(cursor=pymysql.cursors.DictCursor)
-        self.test_str = 123456
-        logging.info('初始化数据库连接')
-
-    def __new__(cls, *args, **kw):
-        if not hasattr(cls, '_instance'):
-            cls._instance = object.__new__(cls)
-        return cls._instance
-
-    def select_all(self, sql_select, res="fetchall" ):
-        """
-        执行查询语句, 返回所有结果
-        :param sql_select: 执行的select语句
-        :param res: 返回多少条数据, fetchall(默认): 全部, int数字: 获取指定条数
-        """
-        self.cursor.execute(sql_select)
-        if isinstance(res, int):
-            result = self.cursor.fetchmany(res)
-        else:
-            result = self.cursor.fetchall()
-        return result
-
-    def commit(self, sql, args=None):
-        # 开启事务
-        self.conn.begin()
-        try:
-            # 推荐使用占位符和参数的方式, 这样不用自己组合引号了, 也防止sql注入
-            self.cursor.execute(sql, args)
-        except Exception as e:
-            logging.error(f'触发事务回滚: {sql} 值: {args}')
-            logging.exception(e)
-            self.conn.rollback()
-            raise ZeroDivisionError("SQL执行失败, 触发事务回滚")
-        else:
-            logging.info(f"sql执行成功: {sql} 值: {args}")
-            self.conn.commit()
-
-    def close(self):
-        """
-        关闭数据库连接
-        """
-        self.cursor.close()
-        self.conn.close()
-
-
-
-def manual_substitute(list_sql, data):
-    """
-    手动替换 SQL 语句中的占位符为实际的参数值, 用于前端展示
-
-    参数:
-    list_sql: 列表中元素应为元组, 元组第一位是带占位符的sql, 第二位是值
-
-    返回:
-    列表: 替换占位符后的 SQL 语句。
-    """
-    list_sql_str = []
-    # 检查参数类型是否是字符串，如果是字符串，则添加引号
-    for sql in list_sql:
-        # 使用参数替换占位符
-        substituted_sql = sql % data
-        # print(substituted_sql)
-        list_sql_str.append(substituted_sql)
-    return list_sql_str
