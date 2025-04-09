@@ -71,6 +71,10 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   let create_dir_attrs_must:Ref<Array<string>> = ref([])
   // 克隆当前dn的临时数据
   let data_req_dir_clone:Ref<reqLdapClone[]> = ref([])
+  // 克隆当前dn的临时数据的竖版数据
+  let data_req_dir_clone_vertical:Ref<Array<{[key:string]: Array<string>|string}>> = ref([])
+  // 克隆当前dn的临时数据的竖版数据的rdn记录对象
+  let data_rdn_clone_vertical:Ref<{[key:string]: string}> = ref({})
   // 当前获取的ldif文本内容
   let data_res_dir_export:Ref<string> = ref("")
   const { text, copy, copied, isSupported } = useClipboard()
@@ -174,6 +178,8 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   let status_load_force:Ref<boolean> = ref(false)
   // 帮助页面的状态
   let status_win_help:Ref<boolean> = ref(false)
+  // 克隆弹框表格的横竖状态, true为横, false为竖
+  let status_table_dir_clone_layout:Ref<boolean> = ref(true)
 
 
   def_servers_get()
@@ -195,6 +201,8 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   function def_dir_clone_init() {
     // 先让按钮转圈
     status_change_dir.value = true
+    // 先指定为横向排版
+    status_table_dir_clone_layout.value = true
     // 提取克隆用的参考值
     select_dir_clone.value = deepClone(select_dir_info.value)
     // 提取前后缀
@@ -211,20 +219,39 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
     }]
     // 置空更新用的搜索框
     input_search_attrs.value = ""
+
+    // 默认启用竖排操作
+    def_change_clone_layout()
+
     // 最后打开窗口
     status_win_clone_dir.value = true
     status_change_dir.value = false
   }
   // 在克隆窗口新增一行数据
   function def_dir_clone_addline() {
+    status_change_dir.value = true
     // 获取修正后的属性信息
     let dn_attrs_new = def_dir_clone_format()
     // 向列表内追加一行初始数据, 以当前选中的dn的数据为基准
-    data_req_dir_clone.value.push({
-      attrs: dn_attrs_new,
-      dn: "",
-      dn_v: "",
-    })
+    if (status_table_dir_clone_layout.value) {
+      // 横向数据
+      data_req_dir_clone.value.push({
+        attrs: dn_attrs_new,
+        dn: "",
+        dn_v: "",
+      })
+    } else {
+      // 竖向数据
+      // 计算这是第几个rdn
+      let rdn_num = data_req_dir_clone.value.length
+      // rdn对象新增
+      data_rdn_clone_vertical.value[rdn_num] = ''
+      for (let [i, k] of data_req_dir_clone_vertical.value.entries()) {
+        let attr_name = data_req_dir_clone_vertical.value[i]['attr'] as string
+        data_req_dir_clone_vertical.value[i][rdn_num] = dn_attrs_new[attr_name]
+      }
+    }
+    status_change_dir.value = false
   }
 
   // 克隆时修整已有属性列表已经对应值的函数
@@ -342,6 +369,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   async function def_serverdata_api() {
     let data_res_tmp = await getServer('/api/devops/ldapserver/obj/getall', {server_name: select_server.value}) as resLdapAll
     request_server.value = select_server.value
+    sortChildrenByEntry(data_res_tmp.obj_tree)
     data_res_serverdirTree.value = data_res_tmp.obj_tree
     data_res_serverdirInfo.value = data_res_tmp.obj_info
     data_res_serverclass.value = data_res_tmp.class
@@ -423,7 +451,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   }
 
   // 新增一条dn
-  async function def_serverdir_add() {
+  async function def_serverdir_add(onlyone:boolean = false) {
     load_servers_get.value = true
     status_change_dir.value = true
     // 新dn
@@ -473,12 +501,22 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
     status_change_dir.value = false
     // 再触发一次选择新建的dn, 在try内会导致过早触发导致点击不到数据
     def_dir_click_tmp(dn_new)
+    // 如果是仅创建
+    if (onlyone) {
+      status_win_create_dir.value = false
+    }
   }
 
   // 克隆多条dn
   async function def_serverdir_clone() {
     load_servers_get.value = true
     status_change_dir.value = true
+
+    // 如果当前是竖向排版, 则先将数据转化为横向
+    if (!status_table_dir_clone_layout.value) {
+      def_change_clone_layout(false)
+      console.log("仅将竖向数据转化为横向数据")
+    }
 
     // 拼凑新条目的dn
     data_req_dir_clone.value.forEach((value, index, array) => {
@@ -497,7 +535,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
     // return
     // 请求新增
     try {
-      // console.log("新增的dn: ", dn_new, data_add)
+      console.log("新增的dn: ", data_add)
       await getServer('/api/devops/ldapserver/obj/add', data_add)
       global_window("success", "成功新增 "+data_req_dir_clone.value.length+" 条dn")
       status_win_clone_dir.value = false
@@ -830,6 +868,10 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   // 克隆dn前的数据校验
   function def_check_dir_clone() {
     let el = ""
+    // 列表不能为空
+    if (data_req_dir_clone.value.length==0) {
+      el = "没有有效的dn可以新增"
+    }
     // 对列表循环
     for (let k of data_req_dir_clone.value) {
       // dn的输入值不能为空
@@ -1105,9 +1147,20 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
       v = ['']
     }
     // 为所有行新增值, 为了显示列中的input框
-    for (let [i, k] of data_req_dir_clone.value.entries()) {
-      data_req_dir_clone.value[i].attrs[command] = v
+    if (status_table_dir_clone_layout.value) {
+      // 横版
+      for (let [i, k] of data_req_dir_clone.value.entries()) {
+        data_req_dir_clone.value[i].attrs[command] = v
+      }
+    } else {
+      // 竖版
+      let obj_tmp:{[key: string]: Array<string>|string} = {attr: command}
+      for (let [k, value] of Object.entries(data_rdn_clone_vertical.value)) {
+        obj_tmp[k] = deepClone(v)
+      }
+      data_req_dir_clone_vertical.value.push(obj_tmp)
     }
+
     // 为模板新增, 为了显示新的列
     select_dir_clone.value[command] = v
     status_change_dir.value = false
@@ -1160,22 +1213,61 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
   // 克隆一个条目时删除一个指定属性
   function def_dir_delattr_clone(attr_name:string) {
     status_change_dir.value = true
+    // 横竖版采用不同的操作
+    // 横版
+    if (status_table_dir_clone_layout.value) {
+      if (select_dir_attrs_must.value.includes(attr_name)) {
+        global_window("error", "不允许删除必要属性")
+      } else {
+        // 为所有行删除属性, 为了显示列中的input框
+        for (let [i, k] of data_req_dir_clone.value.entries()) {
+          delete data_req_dir_clone.value[i].attrs[attr_name]
+        }
+        // 将模板的列删除, 为了不显示这个列
+        delete select_dir_clone.value[attr_name]
+      }
+    } else {
+      // 竖版
+      if (select_dir_attrs_must.value.includes(attr_name)) {
+        global_window("error", "不允许删除必要属性")
+      } else {
+        // 为所有行删除属性, 为了显示列中的input框
+        for (let [i, k] of data_req_dir_clone_vertical.value.entries()) {
+          delete data_req_dir_clone_vertical.value[i][attr_name]
+          delete data_rdn_clone_vertical.value[attr_name]
+        }
+        // 将模板的列删除, 为了横版不显示这个列
+        delete select_dir_clone.value[attr_name]
+      }
+    }
     // if (Array.isArray(data_req_dir_update.value[attr_name])) {
     //   console.log(select_dir_dn.value, "删除属性", attr_name)
     //   delete data_req_dir_update.value[attr_name];
     // }
-    if (select_dir_attrs_must.value.includes(attr_name)) {
-      global_window("error", "不允许删除必要属性")
+
+    // 同步一次竖版数据
+    def_clone_to_vertical()
+    status_change_dir.value = false
+  }
+
+  // 克隆一个dn时删除一个新的dn
+  function def_dir_clone_dn_del(dn_index:number) {
+    status_change_dir.value = true
+    status_change_dir.value = true
+    // 横版
+    if (status_table_dir_clone_layout.value) {
+      // 删除指定行
+      data_req_dir_clone.value.splice(dn_index, 1)
     } else {
-      // 为所有行删除属性, 为了显示列中的input框
-      for (let [i, k] of data_req_dir_clone.value.entries()) {
-        delete data_req_dir_clone.value[i].attrs[attr_name]
+      // 竖版
+      delete data_rdn_clone_vertical.value[dn_index.toString()]
+      for (let [i, k] of data_req_dir_clone_vertical.value.entries()) {
+        delete data_req_dir_clone_vertical.value[i][dn_index.toString()]
       }
-      // 将模板的列删除, 为了不显示这个列
-      delete select_dir_clone.value[attr_name]
     }
     status_change_dir.value = false
   }
+
   // 取消更改一个条目, 还原数据
   function def_dir_change_cancel() {
     status_change_dir.value = true
@@ -1400,6 +1492,83 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
     "--el-table-border-color": "white",
   }
 
+  // 函数：按 entry 字段对 children 数组进行排序
+  function sortChildrenByEntry(obj:resLdapDir[]) {
+    if (Array.isArray(obj)) {
+      obj.forEach(item => {
+        // 对当前对象的 children 进行排序
+        if (item.children && Array.isArray(item.children)) {
+          item.children.sort((a, b) => a.entry.localeCompare(b.entry));
+
+          // 递归处理子节点的 children
+          sortChildrenByEntry(item.children);
+        }
+      });
+    }
+  }
+
+  // 切换横竖排版的动作
+  function def_change_clone_layout(change_status:boolean=true) {
+    // status_table_dir_clone_horizontal=!status_table_dir_clone_horizontal
+    if (status_table_dir_clone_layout.value) {
+      if (change_status) {
+        status_table_dir_clone_layout.value = false
+      }
+      def_clone_to_vertical()
+    } else {
+      if (change_status) {
+        status_table_dir_clone_layout.value = true
+      }
+      def_clone_to_horizontal()
+    }
+  }
+
+  // 将data_req_dir_clone变量转为竖版表格所需的数据格式
+  function def_clone_to_vertical() {
+    let obj_tmp:{[key:string]:{[key:string]: Array<string>|string}} = {}
+    data_rdn_clone_vertical.value = {}
+    // 依照已选择的克隆dn的字段信息来填充元素
+    for (let [k, v] of Object.entries(select_dir_clone.value)) {
+      obj_tmp[k] = {'attr': k}
+    }
+    // 填充数据, 对横版数据data_req_dir_clone循环
+    for (let [index_dn, dn_info] of data_req_dir_clone.value.entries()) {
+      let dn = dn_info.dn
+      let dn_v = dn_info.dn_v
+      for (let [index_attr, [k, v]] of Object.entries(dn_info.attrs).entries()) {
+        console.log(index_dn, index_attr)
+        // 将每个dn的该属性的值填入obj_tmp中, key不适合为名字, 因为可能转换时暂时是空的, 这里用索引数字
+        obj_tmp[k][index_dn] = v
+        // 记录每个rdn, 用以循环多个列
+        data_rdn_clone_vertical.value[index_dn] = dn_v
+      }
+    }
+    // 将values赋予竖版数据data_req_dir_clone_vertical
+    data_req_dir_clone_vertical.value = Object.values(obj_tmp)
+    console.log(data_req_dir_clone_vertical.value)
+  }
+
+  // 将克隆数据由竖版转为横版
+  function def_clone_to_horizontal() {
+    let array_tmp:reqLdapClone[] = []
+    // 外层循环rdn
+    for (let [index_dn, rdn] of Object.entries(data_rdn_clone_vertical.value)) {
+      let obj_tmp:reqLdapClone = {
+        dn: '',
+        dn_v: rdn,
+        attrs: {}
+      }
+      // 内层循环该rdn的attr
+      for (let [index_attr, info_attr] of data_req_dir_clone_vertical.value.entries()) {
+        let attr_name = info_attr['attr'] as string
+        obj_tmp.attrs[attr_name] = info_attr[index_dn]
+      }
+      array_tmp.push(obj_tmp)
+    }
+    data_req_dir_clone.value = array_tmp
+  }
+
+
   // input转圈图标
   const svg = `
     <path class="path" d="
@@ -1426,8 +1595,8 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
             <el-option v-for="k of Object.keys(data_res_servers)" :key="k" :label="k" :value="k" />
           </el-select>
           <el-button v-if="select_server" type="primary" @click="def_serverdata_get()">发起连接</el-button>
-          <el-button type="success" @click="status_win_servers_add=true">新增</el-button>
-          <el-button v-if="select_server" type="danger" @click="status_ask_servers_delete=true">删除</el-button>
+          <el-button v-dcj="`新增连接`" type="success" @click="status_win_servers_add=true">新增</el-button>
+          <el-button v-dcj="`删除连接`" v-if="select_server" type="danger" @click="status_ask_servers_delete=true">删除</el-button>
 
         </div>
         <div>
@@ -1441,7 +1610,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
         </template>
         <div  class="div_show_server">
           <div style="margin-bottom: 10px">
-            <el-button size="small" type="warning" @click="status_change_server=true" v-if="!status_change_server">修改</el-button>
+            <el-button v-dcj="`编辑连接`" size="small" type="warning" @click="status_change_server=true" v-if="!status_change_server">修改</el-button>
             <el-button size="small" type="warning" plain @click="def_server_update_cancel()" v-if="status_change_server">取消修改</el-button>
             <el-button size="small" type="success" plain @click="def_servers_update()" v-if="status_change_server">提交更新</el-button>
           </div>
@@ -1510,7 +1679,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
     <!--{{select_tree_checkbox}}-->
     <!-- 选定的ldap服务器数据展示区 -->
     <!--{{data_req_dir_add}}-->
-    <el-card style="height: calc(100vh - 60px - 130px)">
+    <el-card v-loading="load_servers_get" style="height: calc(100vh - 60px - 130px)">
 
       <!-- 数据获取失败时的展示 -->
       <div v-if="!status_req_get_dir" class="zihao_error">
@@ -1534,9 +1703,9 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
             <div style="display: flex; align-items: self-start">
               <el-button v-if="!status_tree_checkbox" size="small" type="info" @click="def_tree_on()">开启多选</el-button>
               <el-button v-else plain size="small" type="info" @click="def_tree_off()">关闭多选</el-button>
-              <el-button :disabled="select_tree_checkbox.length==0" size="small" type="danger" @click="status_win_delete_dir_more=true">删除</el-button>
-              <el-button size="small" type="success" @click="def_dir_add_before()">新增</el-button>
-              <el-button size="small" type="primary" @click="status_win_load_dir=true">导入</el-button>
+              <el-button v-dcj="`删除条目`" :disabled="select_tree_checkbox.length==0" size="small" type="danger" @click="status_win_delete_dir_more=true">删除</el-button>
+              <el-button v-dcj="`新增条目`" size="small" type="success" @click="def_dir_add_before()">新增</el-button>
+              <el-button v-dcj="`编辑条目`" size="small" type="primary" @click="status_win_load_dir=true">导入</el-button>
             </div>
             <!-- 搜索框, 多选时不允许开启, 因为即使筛选了也仅仅是隐藏已选选项, 不会从已选列表中删除被筛选掉的选项 -->
             <el-input
@@ -1643,7 +1812,10 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                         <div v-if="Array.isArray(data_req_dir_add[k])" class="div_form_item" >
                           <div v-for="(vv, i) of v" class="div_item_input">
                             <el-input v-model="data_req_dir_add[k][i]" style="max-width: 400px;min-width: 250px"/>
-                            <el-button type="danger" plain text :icon="Minus" @click="def_dir_delline_add(k.toString(),i)" style="width: 20px"></el-button>
+                            <el-button
+                                type="danger" plain text :icon="Minus" @click="def_dir_delline_add(k.toString(),i)"  style="width: 20px"
+                                :disabled="data_req_dir_add[k].length == 1"
+                            />
                           </div>
                         </div>
                         <el-button v-if="Array.isArray(data_req_dir_add[k])" type="primary" plain text :icon="Plus" @click="def_dir_addline_add(k.toString())" style="width: 20px"/>
@@ -1701,7 +1873,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                   <h3 class="h3_right">创建</h3>
                   <div>
                     <el-button @click="status_win_create_dir=false" :loading="status_change_dir">取消</el-button>
-                    <el-button type="success" :loading="status_change_dir" @click="def_serverdir_add();status_win_create_dir=false">仅创建</el-button>
+                    <el-button type="success" :loading="status_change_dir" @click="def_serverdir_add(true)">仅创建</el-button>
                     <el-button type="success" :loading="status_change_dir" @click="def_serverdir_add()">创建并继续</el-button>
                   </div>
 
@@ -1792,7 +1964,9 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
             <!-- 属性选择框 -->
             <el-popover trigger="click" width="300px" style="min-width: 10px;max-width: 300px" >
               <template #reference>
-                  <el-button type="primary" size="small" style="margin-bottom: 20px" :loading="status_change_dir" :disabled="select_dir_dn==data_res_serverbase">
+                  <el-button
+                      v-dcj="`编辑条目`" type="primary" size="small" style="margin-bottom: 20px"
+                      :loading="status_change_dir" :disabled="select_dir_dn==data_res_serverbase">
                     新增属性 <el-icon class="el-icon--right"><arrow-down /></el-icon>
                   </el-button>
               </template>
@@ -1820,7 +1994,8 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                 <template #label>
                   <el-text type="danger" v-if="select_dir_attrs_must.includes(k.toString())">*&nbsp;</el-text>
                   <el-text>{{k}}</el-text>
-                  <el-button size="small" type="danger" plain text :icon="Delete" @click="def_dir_delattr(k.toString())" style="width: 20px"></el-button>
+                  <!-- 删除属性的图标 -->
+                  <el-button v-dcj="`编辑条目`" size="small" type="danger" plain text :icon="Delete" @click="def_dir_delattr(k.toString())" style="width: 20px"></el-button>
                 </template>
                 <div class="div_item_input">
                   <!-- 单值时的输入框, 不允许编辑命名属性 -->
@@ -1835,14 +2010,15 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                           v-model="data_req_dir_update[k][i]" style="max-width: 400px;min-width: 250px"
                           :disabled="select_dir_dn.split('=')[0] == k && select_dir_dn.split(',')[0].split('=')[1] == data_req_dir_update[k][i]"
                       />
+                      <!-- 属性减去一个值的减号 -->
                       <el-button
-                          :disabled="select_dir_dn.split('=')[0] == k && select_dir_dn.split(',')[0].split('=')[1] == data_req_dir_update[k][i]"
-                          type="danger" plain text :icon="Minus" @click="def_dir_delline(k.toString(),i)" style="width: 20px"
+                          :disabled="(select_dir_dn.split('=')[0] == k && select_dir_dn.split(',')[0].split('=')[1] == data_req_dir_update[k][i]) || data_req_dir_update[k].length ==1"
+                          v-dcj="`编辑条目`" type="danger" plain text :icon="Minus" @click="def_dir_delline(k.toString(),i)" style="width: 20px"
                       />
                     </div>
                   </div>
-
-                  <el-button v-if="Array.isArray(data_req_dir_update[k])" type="primary" plain text :icon="Plus" @click="def_dir_addline(k.toString())" style="width: 20px"/>
+                  <!-- 属性一个值的加号 -->
+                  <el-button v-dcj="`编辑条目`" v-if="Array.isArray(data_req_dir_update[k])" type="primary" plain text :icon="Plus" @click="def_dir_addline(k.toString())" style="width: 20px"/>
                 </div>
 
               </el-form-item>
@@ -1868,7 +2044,8 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
               <!-- 模板选择框 -->
               <el-popover trigger="click" width="300px" style="min-width: 10px;max-width: 300px">
                 <template #reference>
-                  <el-button type="primary" plain text :icon="Plus" style="width: 20px" :disabled="select_dir_dn==data_res_serverbase"/>
+                  <!-- 新增class模版的加号 -->
+                  <el-button v-dcj="`编辑条目`" type="primary" plain text :icon="Plus" style="width: 20px" :disabled="select_dir_dn==data_res_serverbase"/>
                 </template>
                 <!--<el-select v-model="data_req_dir_objectClass_update" filterable multiple clearable>-->
                 <!--  <el-option v-for="k of Object.keys(data_res_serverclass)" :label="k" :value="k"/>-->
@@ -1905,33 +2082,33 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
             <el-button
                 size="small" :disabled="cpd_isChange_dir || select_dir_dn==data_res_serverbase"
                 type="warning" plain @click="def_dir_change_cancel()" :loading="status_change_dir"
-            >取消更改</el-button>
+            >还原数据</el-button>
             <el-button
-                size="small" :disabled="cpd_isChange_dir || select_dir_dn==data_res_serverbase"
+                v-dcj="`编辑条目`" size="small" :disabled="cpd_isChange_dir || select_dir_dn==data_res_serverbase"
                 type="warning" :loading="status_change_dir" @click="def_serverdir_update()"
             >提交</el-button>
             <!--<el-button @click="tree_ldapdir?.setCurrentKey('ou=daoqi,dc=teyvat,dc=com')">点击稻妻</el-button>-->
             <!--<el-button @click="def_test_click()">点击稻妻</el-button>-->
             <h3 class="h3_right">新增</h3>
             <el-button
-                size="small" type="success" @click="def_serverdir_rename_before()" :loading="status_change_dir"
+                v-dcj="`编辑条目`" size="small" type="success" @click="def_serverdir_rename_before()" :loading="status_change_dir"
                 :disabled="select_dir_dn==data_res_serverbase"
             >重命名</el-button>
             <el-button
-                size="small" type="success" @click="def_serverdir_move_before()" :loading="status_change_dir"
+                v-dcj="`编辑条目`" size="small" type="success" @click="def_serverdir_move_before()" :loading="status_change_dir"
                 :disabled="select_dir_dn==data_res_serverbase"
             >移动</el-button>
             <el-button
-                size="small" type="success" @click="def_dir_clone_init()" :loading="status_change_dir"
+                v-dcj="`新增条目`" size="small" type="success" @click="def_dir_clone_init()" :loading="status_change_dir"
                 :disabled="select_dir_dn==data_res_serverbase"
             >同级克隆</el-button>
             <!--<el-container :disabled="select_dir_dn==data_res_serverbase">-->
             <!--  -->
             <!--</el-container>-->
 
-            <h3 class="h3_right">删除</h3>
+            <h3 v-dcj="`删除条目`" class="h3_right">删除</h3>
             <el-button
-                size="small" type="danger" @click="status_win_delete_dir_one=true" :loading="status_change_dir"
+                v-dcj="`删除条目`" size="small" type="danger" @click="status_win_delete_dir_one=true" :loading="status_change_dir"
                 :disabled="select_dir_dn==data_res_serverbase"
             >删除</el-button>
             <h3 class="h3_right">导出</h3>
@@ -1940,6 +2117,9 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
 
           <!-- 克隆当前选中dn的弹框 -->
           <el-dialog v-model="status_win_clone_dir" center :title="'克隆: '+select_dir_dn" width="90%">
+            <el-button size="small" type="warning" @click="def_change_clone_layout()">
+              切换横竖排版
+            </el-button>
             <!-- objectClass展示区 -->
             <div style="display: flex;flex-direction: column; justify-content: left; margin-bottom: 20px">
               <div style="display: flex; align-items: center; margin-bottom: 10px">
@@ -1973,7 +2153,17 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                   </el-table-column>
                 </el-table>
               </el-popover>
-              <el-table :data="data_req_dir_clone" :style="style_table" :header-cell-style="style_table_header" :cell-style="style_table_cell" border>
+              <!-- 横版表格 -->
+              <el-table
+                  :data="data_req_dir_clone" :style="style_table" :header-cell-style="style_table_header" :cell-style="style_table_cell"
+                  border v-if="status_table_dir_clone_layout"
+              >
+                <!-- 操作列, 提供删除本行的功能 -->
+                <el-table-column label="操作" fixed width="80px">
+                  <template #default="scope" >
+                    <el-button @click="data_req_dir_clone.splice(scope.$index, 1)" type="danger" plain size="small">删除</el-button>
+                  </template>
+                </el-table-column>
                 <!-- dn列 -->
                 <el-table-column prop="dn_v" label="dn命名属性值" fixed width="180px">
                   <template #default="scope" >
@@ -2014,7 +2204,7 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                           />
                           <!-- :disabled="select_dir_dn.split('=')[0] == k && scope.row.dn == scope.row.attrs[k][i]" -->
                           <el-button
-                              type="danger" size="small" plain text :icon="Minus" @click="scope.row.attrs[k].splice(i,1)" style="width: 10px"
+                              type="danger" size="small" plain text :icon="Minus" @click="scope.row.attrs[k].splice(i,1)" style="width: 10px" :disabled="scope.row.attrs[k].length == 1"
                           />
                         </div>
                       </div>
@@ -2023,6 +2213,75 @@ import dingjiyu from '@/assets/svg/dingjiyu.svg'
                   </template>
                 </el-table-column>
               </el-table>
+              <!-- 竖版表格 -->
+              <el-table
+                  :data="data_req_dir_clone_vertical"
+                  :style="style_table" :header-cell-style="style_table_header" :cell-style="style_table_cell"
+                  border v-if="!status_table_dir_clone_layout"
+              >
+                <el-table-column label="dn命名属性值" fixed width="200px">
+                  <template #header>
+                    <el-text type="danger">*&nbsp;</el-text>
+                    <el-text>dn命名属性值</el-text>
+                  </template>
+                  <template #default="scope" >
+                    <div>
+                      <el-text type="danger" v-if="select_dir_attrs_must.includes(scope.row.attr)">*&nbsp;</el-text>
+                      <el-text>{{scope.row.attr}}</el-text>
+                      <el-button
+                          size="small" type="danger" plain text :icon="Delete" style="width: 20px"
+                          @click="def_dir_delattr_clone(scope.row.attr.toString())"
+                      >
+                      </el-button>
+                    </div>
+                  </template>
+                </el-table-column>
+                <!-- 后面的各个dn的竖向排列 -->
+                <el-table-column v-for="(v, k) in data_rdn_clone_vertical" width="230px">
+                  <!-- 头部rdn值输入框 -->
+                  <template #header>
+                    <el-tooltip
+                        placement="top-start"
+                        :content="input_dn_clone_prepend+'={'+(data_rdn_clone_vertical[k.toString()]||'')+'},'+input_dn_clone_append"
+                    >
+                      <el-input size="small" v-model="data_rdn_clone_vertical[k.toString()]" style="width: 160px"/>
+                    </el-tooltip>
+                    <el-button
+                        size="small" type="danger" plain text :icon="Delete" style="width: 20px"
+                        @click="def_dir_clone_dn_del(Number(k))"
+                    />
+                  </template>
+                  <template #default="scope">
+                    <!--{{scope.row.attr}}-->
+                    <!--{{data_res_serverattrs[scope.row.attr]}}-->
+                    <div class="div_item_input">
+                      <!-- 单值时的输入框, 不允许编辑命名属性 -->
+                      <el-input
+                          size="small" v-if="data_res_serverattrs[scope.row.attr].attr_isSingle" v-model="scope.row[k]" style="width: 160px"
+                      />
+                      <!-- 多值时的输入框, 不允许编辑命名属性 -->
+                      <div v-if="!data_res_serverattrs[scope.row.attr].attr_isSingle" class="div_form_item" >
+                        <!--{{data_req_dir_clone[scope.$index].attrs}}-->
+                        <!--{{scope.row.attrs}}{{k}}-->
+                        <div v-for="(vv, i) of scope.row[k]" class="div_item_input_inline">
+                          <!-- :disabled="select_dir_dn.split('=')[0] == k && scope.row.dn == scope.row.attrs[k][i]" -->
+                          <el-input
+                              size="small" v-model="scope.row[k][i]" style="width: 160px"
+                          />
+                          <!-- :disabled="select_dir_dn.split('=')[0] == k && scope.row.dn == scope.row.attrs[k][i]" -->
+                          <el-button
+                              type="danger" size="small" plain text :icon="Minus" @click="scope.row[k].splice(i,1)" style="width: 10px" :disabled="scope.row[k].length == 1"
+                          />
+                        </div>
+                      </div>
+                      <el-button v-if="!data_res_serverattrs[scope.row.attr].attr_isSingle" size="small" type="primary" plain text :icon="Plus" @click="scope.row[k].push('')" style="width: 10px"/>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <!--<span>{{data_req_dir_clone}}</span>-->
+              <!--<span>{{data_rdn_clone_vertical}}</span>-->
+              <!--<span>{{data_req_dir_clone_vertical}}</span>-->
               <el-button style="width: 100%;margin-top: 20px" @click="def_dir_clone_addline()" :icon="CirclePlus" text type="primary">新增一行</el-button>
               <!--{{data_req_dir_clone}}<br>-->
               <!--{{select_dir_info}}<br>-->

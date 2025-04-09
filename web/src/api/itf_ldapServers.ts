@@ -34,7 +34,8 @@ export interface resLdapAll {
 export interface resLdapDir {
     dn: string,
     entry: string,
-    // objectClass: Array<string>,
+    objectClass: Array<string>,
+    children: resLdapDir[]
     // attrs: {
     //     [key: string]: Array<string>|string,
     // },
@@ -78,8 +79,8 @@ export interface resLdapAttr {
 
 // 克隆当前选定dn时用到的临时列表
 export interface reqLdapClone {
-    dn: string
-    dn_v: string
+    dn: string,
+    dn_v: string,
     attrs: {
         [key: string]: Array<string>|string
     }
