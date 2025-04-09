@@ -1,4 +1,4 @@
-# docker build --progress=plain -t openldapui:v2 .
+# docker build --progress=plain -t qufudcj/openldapui:v2 .
 FROM python:3.10.16-alpine3.21
 # 安装nginx并设置开机启动
 RUN apk add --no-cache nginx && ls /etc/nginx
@@ -50,9 +50,9 @@ RUN pip install --no-cache-dir requests Flask ruamel.yaml ldap3 ldif
 RUN pip cache purge
 RUN mkdir /openldapui
 # 拷贝前端文件
-COPY OpenLdapUi/web-dist /openldapui/web-dist
+COPY web-dist /openldapui/web-dist
 # 拷贝后端文件
-COPY OpenLdapUi/api /openldapui/api
+COPY api /openldapui/api
 # 设置启动相关
 RUN echo "#!/bin/sh" > /openldapui/start.sh && \
     echo "# 启动 Nginx" >> /openldapui/start.sh && \
