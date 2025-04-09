@@ -9,15 +9,15 @@ RUN echo 'server  {' > /etc/nginx/http.d/openldapui.conf && \
     echo '    # 你手动编译或下载编译好的web目录' >> /etc/nginx/http.d/openldapui.conf && \
     echo '    root  /openldapui/web-dist;' >> /etc/nginx/http.d/openldapui.conf && \
     echo '' >> /etc/nginx/http.d/openldapui.conf && \
-    echo '    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '    {' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '      expires      30d;' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '    }' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '    location / {' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '        try_files $uri $uri/ /index.html;' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '    }' >> /etc/nginx/http.d/openldapui-iam.conf && \
-    echo '' >> /etc/nginx/http.d/openldapui-iam.conf && \
+    echo '    location ~ .*\.(gif|jpg|jpeg|png|bmp|swf)$' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '    {' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '      expires      30d;' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '    }' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '    location / {' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '        try_files $uri $uri/ /index.html;' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '    }' >> /etc/nginx/http.d/openldapui.conf && \
+    echo '' >> /etc/nginx/http.d/openldapui.conf && \
     echo '    # /api是后端接口' >> /etc/nginx/http.d/openldapui.conf && \
     echo '    location /api {' >> /etc/nginx/http.d/openldapui.conf && \
     echo '        if ($request_method = 'OPTIONS') {' >> /etc/nginx/http.d/openldapui.conf && \

@@ -32,7 +32,7 @@ def get_all(data_req):
     # 初始化数据库
     mp = MysqlPool()
 
-    sql_select_tem = "select * from sw_ldap_servers where server_name = %(server_name)s;"
+    sql_select_tem = "select * from sw_ldap_servers where server_name = :server_name;"
     sql_select_data = {"server_name": server_name}
     res_db = mp.fetch_one(sql_select_tem, sql_select_data)
     if not res_db:
@@ -98,7 +98,7 @@ def add(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-        select * from sw_ldap_servers where server_name = %(server_name)s;
+        select * from sw_ldap_servers where server_name = :server_name;
     """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
@@ -134,9 +134,6 @@ def add(data_req):
                     raise ZeroDivisionError(f"dn '{dn}' 已存在, 请检查: {status}, {result}")
 
                 for k, v in attrs.items():
-                    # 删除列表中的空值
-                    # if isinstance(v, list):
-                    #     v = [i for i in v if i]
                     data_ldap[dn][k] = v
 
             # print(data_ldap)
@@ -187,7 +184,7 @@ def update(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-        select * from sw_ldap_servers where server_name = %(server_name)s;
+        select * from sw_ldap_servers where server_name = :server_name;
     """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
@@ -269,7 +266,7 @@ def delete(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-            select * from sw_ldap_servers where server_name = %(server_name)s;
+            select * from sw_ldap_servers where server_name = :server_name;
         """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
@@ -352,7 +349,7 @@ def move(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-        select * from sw_ldap_servers where server_name = %(server_name)s;
+        select * from sw_ldap_servers where server_name = :server_name;
     """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
@@ -451,7 +448,7 @@ def export(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-            select * from sw_ldap_servers where server_name = %(server_name)s;
+            select * from sw_ldap_servers where server_name = :server_name;
         """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
@@ -573,7 +570,7 @@ def upload(data_req):
 
     # 查询数据库中server_name的相关信息
     sql_select_tem = """
-        select * from sw_ldap_servers where server_name = %(server_name)s;
+        select * from sw_ldap_servers where server_name = :server_name;
     """
     sql_select_data = {"server_name": server_name}
     res_db_select = mp.fetch_one(sql_select_tem, sql_select_data)
